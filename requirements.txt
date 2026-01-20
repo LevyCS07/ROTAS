@@ -3,4 +3,5 @@ pandas
 openrouteservice
 lxml
 folium
+openpyxl
 streamlit-folium
