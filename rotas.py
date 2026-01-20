@@ -11,6 +11,34 @@ ORS_API_KEY = "5b3ce3597851110001cf624831819d355127423cb4da08dbf33c6ca0"
 
 st.title("🚗 Gerador de Rotas KML")
 
+# ❓ Expander de ajuda
+with st.expander("❓ Como utilizar o app"):
+    st.markdown("""
+    ### Passo a passo
+
+    1. Faça upload da planilha `LISTA.xlsx`.
+
+    ## 📂 Estrutura esperada da planilha
+    - Nome da aba: **BD**
+    - Colunas obrigatórias:
+      - `ROTA` → identificador da rota
+      - `COLABORADOR` → nome da pessoa/ponto
+      - `LAT` → latitude
+      - `LONG` → longitude
+
+    Exemplo:
+
+    | ROTA | COLABORADOR | LAT       | LONG      |
+    |------|-------------|-----------|-----------|
+    | 1    | João        | -3.119027 | -60.021731|
+    | 1    | Maria       | -3.120500 | -60.022800|
+    | 2    | Pedro       | -3.118900 | -60.020600|
+
+    2. Clique no mapa para escolher o destino final.
+    3. Clique em **GERAR ROTAS**.
+    4. Baixe os arquivos `.kml` gerados para cada rota.
+    """)
+
 # Upload da planilha
 uploaded_file = st.file_uploader("Envie sua planilha LISTA.xlsx", type=["xlsx"])
 
@@ -98,6 +126,8 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
             file_name=f"rota_{rota_nome}.kml",
             mime="application/vnd.google-earth.kml+xml"
         )
+
+
 
 
 
