@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import openrouteservice
 from lxml import etree
+import folium
+from streamlit_folium import st_folium
 import io
 
 # === CONFIGURAÇÕES ===
@@ -12,13 +14,21 @@ st.title("🚗 Gerador de Rotas KML")
 # Upload da planilha
 uploaded_file = st.file_uploader("Envie sua planilha LISTA.xlsx", type=["xlsx"])
 
-# Seleção do destino final (latitude/longitude)
-lat = st.number_input("Latitude do destino final", format="%.6f")
-lng = st.number_input("Longitude do destino final", format="%.6f")
+# Mapa inicial para escolher destino
+m = folium.Map(location=[-3.119, -60.021], zoom_start=12)
+st.write("Clique no mapa para escolher o destino final")
+map_data = st_folium(m, height=400, width=700)
+
+destino_final = None
+if map_data and map_data["last_clicked"]:
+    destino_final = (
+        map_data["last_clicked"]["lat"],
+        map_data["last_clicked"]["lng"]
+    )
+    st.success(f"Destino selecionado: {destino_final}")
 
 # Botão para gerar rotas
-if uploaded_file and lat and lng and st.button("GERAR ROTAS"):
-    destino_final = (lat, lng)
+if uploaded_file and destino_final and st.button("GERAR ROTAS"):
     df = pd.read_excel(uploaded_file, sheet_name="BD")
     grupos = df.groupby("ROTA")
     client = openrouteservice.Client(key=ORS_API_KEY)
@@ -88,6 +98,8 @@ if uploaded_file and lat and lng and st.button("GERAR ROTAS"):
             file_name=f"rota_{rota_nome}.kml",
             mime="application/vnd.google-earth.kml+xml"
         )
+
+
 
 
 
