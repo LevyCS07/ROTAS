@@ -34,6 +34,12 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
     grupos = df.groupby("ROTA")
     client = openrouteservice.Client(key=ORS_API_KEY)
 
+    # mapa final
+    m = folium.Map(location=destino_final, zoom_start=12)
+
+    # lista para guardar arquivos KML
+    kml_files = []
+
     for rota_nome, grupo in grupos:
         pontos = [[row['LONG'], row['LAT']] for _, row in grupo.iterrows()]
         pontos.append([destino_final[1], destino_final[0]])
@@ -49,7 +55,6 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
             st.error(f"Erro na rota {rota_nome}: {e}")
             continue
 
-        # Adicionar rota no mapa
         coords = resultado['features'][0]['geometry']['coordinates']
         folium.PolyLine([(c[1], c[0]) for c in coords], color="blue", weight=4).add_to(m)
 
@@ -58,7 +63,7 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
 
         folium.Marker(destino_final, popup="Destino Final", icon=folium.Icon(color="red")).add_to(m)
 
-        # Gerar KML
+        # gerar KML em memória
         kml_root = etree.Element('kml', xmlns="http://www.opengis.net/kml/2.2")
         document = etree.SubElement(kml_root, 'Document')
 
@@ -94,7 +99,13 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
         tree = etree.ElementTree(kml_root)
         kml_bytes = io.BytesIO()
         tree.write(kml_bytes, pretty_print=True, xml_declaration=True, encoding="UTF-8")
+        kml_files.append((rota_nome, kml_bytes))
 
+    # mostrar mapa final
+    st_folium(m, height=500, width=700)
+
+    # mostrar botões de download
+    for rota_nome, kml_bytes in kml_files:
         st.download_button(
             label=f"Baixar rota {rota_nome}.kml",
             data=kml_bytes.getvalue(),
@@ -102,4 +113,4 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
             mime="application/vnd.google-earth.kml+xml"
         )
 
-    st_folium(m, height=500, width=700)
+
