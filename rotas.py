@@ -118,14 +118,21 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS"):
         tree.write(kml_bytes, pretty_print=True, xml_declaration=True, encoding="UTF-8")
         kml_files.append((rota_nome, kml_bytes))
 
-    # mostrar botões de download
-    for rota_nome, kml_bytes in kml_files:
+    # salvar no estado da sessão
+    st.session_state["kmls"] = kml_files
+
+# mostrar botões de download sempre que existirem no estado
+if "kmls" in st.session_state:
+    st.subheader("📥 Downloads disponíveis")
+    for rota_nome, kml_bytes in st.session_state["kmls"]:
         st.download_button(
             label=f"Baixar rota {rota_nome}.kml",
             data=kml_bytes.getvalue(),
             file_name=f"rota_{rota_nome}.kml",
             mime="application/vnd.google-earth.kml+xml"
         )
+
+
 
 
 
