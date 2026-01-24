@@ -7,7 +7,7 @@ from streamlit_folium import st_folium
 import io
 
 # === CONFIGURAÇÕES ===
-ORS_API_KEY = "5b3ce3597851110001cf624831819d355127423cb4da08dbf33c6ca0"
+ORS_API_KEY = st.secrets["ORS_API_KEY"]
 
 st.title("🚗 Gerador de Rotas KML")
 
@@ -131,6 +131,7 @@ if "kmls" in st.session_state:
             file_name=f"rota_{rota_nome}.kml",
             mime="application/vnd.google-earth.kml+xml"
         )
+
 
 
 
