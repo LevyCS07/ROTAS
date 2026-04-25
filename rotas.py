@@ -30,7 +30,7 @@ if map_data and map_data["last_clicked"]:
     )
     st.success(f"Destino selecionado: {destino_final}")
 
-# === FUNÇÃO GOOGLE (ENDEREÇO) ===
+# === FUNÇÃO GOOGLE (ENDEREÇO + BAIRRO) ===
 
 @st.cache_data
 def obter_endereco_google(lat, lon):
@@ -48,19 +48,18 @@ def obter_endereco_google(lat, lon):
         if data["results"]:
             componentes = data["results"][0]["address_components"]
 
-            rua = bairro = cidade = ""
+            rua = bairro = ""
 
             for comp in componentes:
                 if "route" in comp["types"]:
                     rua = comp["long_name"]
+
                 if "sublocality" in comp["types"] or "neighborhood" in comp["types"]:
                     bairro = comp["long_name"]
-                if "administrative_area_level_2" in comp["types"]:
-                    cidade = comp["long_name"]
 
-            return f"{rua}, {bairro} - {cidade}"
+            return rua, bairro
 
-    return "Endereço não encontrado"
+    return "Não encontrado", "Não encontrado"
 
 
 # === FUNÇÃO KML ===
@@ -69,7 +68,6 @@ def gerar_kml(grupo, coords, destino_final, tipo="Entrada"):
     kml_root = etree.Element('kml', xmlns="http://www.opengis.net/kml/2.2")
     document = etree.SubElement(kml_root, 'Document')
 
-    # pontos
     for _, row in grupo.iterrows():
         placemark = etree.SubElement(document, 'Placemark')
         name = etree.SubElement(placemark, 'name')
@@ -119,20 +117,24 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS E RELATÓRIO"):
 
     df = pd.read_excel(uploaded_file, sheet_name="BD")
 
-    # 🔥 ENRIQUECIMENTO (ENDEREÇOS)
-    enderecos = []
+    # 🔥 ENRIQUECIMENTO (ENDEREÇO + BAIRRO)
+    ruas = []
+    bairros = []
 
     with st.spinner("Buscando endereços..."):
         for _, row in df.iterrows():
             lat = row['LAT E']
             lon = row['LONG E']
 
-            endereco = obter_endereco_google(lat, lon)
-            enderecos.append(endereco)
+            rua, bairro = obter_endereco_google(lat, lon)
 
-            time.sleep(0.05)  # leve controle
+            ruas.append(rua)
+            bairros.append(bairro)
 
-    df["ENDERECO"] = enderecos
+            time.sleep(0.05)
+
+    df["ENDERECO"] = ruas
+    df["BAIRRO"] = bairros
 
     # === ROTAS ===
     grupos = df.groupby("ROTA")
@@ -181,7 +183,7 @@ if "kmls" in st.session_state:
 
     df_final = st.session_state["df_final"]
 
-    st.dataframe(df_final[["COLABORADOR", "ROTA", "ENDERECO"]])
+    st.dataframe(df_final[["COLABORADOR", "ROTA", "ENDERECO", "BAIRRO"]])
 
     output = io.BytesIO()
     df_final.to_excel(output, index=False)
