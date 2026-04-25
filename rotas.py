@@ -12,7 +12,7 @@ import time
 ORS_API_KEY = st.secrets["ORS_API_KEY"]
 GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
-st.title("🚗 Gerador de Rotas + Relatório Inteligente")
+st.title("🚗 Gerador de Rotas + Endereços")
 
 # Upload da planilha
 uploaded_file = st.file_uploader("Envie sua planilha LISTA.xlsx", type=["xlsx"])
@@ -30,11 +30,15 @@ if map_data and map_data["last_clicked"]:
     )
     st.success(f"Destino selecionado: {destino_final}")
 
-# === FUNÇÕES GOOGLE ===
+# === FUNÇÃO GOOGLE (ENDEREÇO) ===
 
+@st.cache_data
 def obter_endereco_google(lat, lon):
     url = "https://maps.googleapis.com/maps/api/geocode/json"
-    params = {"latlng": f"{lat},{lon}", "key": GOOGLE_API_KEY}
+    params = {
+        "latlng": f"{lat},{lon}",
+        "key": GOOGLE_API_KEY
+    }
 
     response = requests.get(url, params=params)
 
@@ -59,42 +63,13 @@ def obter_endereco_google(lat, lon):
     return "Endereço não encontrado"
 
 
-def buscar_referencia_google(lat, lon):
-    url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json"
-    params = {
-        "location": f"{lat},{lon}",
-        "radius": 400,
-        "key": GOOGLE_API_KEY
-    }
-
-    response = requests.get(url, params=params)
-
-    if response.status_code == 200:
-        data = response.json()
-
-        if data.get("results"):
-            lugar = data["results"][0]
-            return lugar.get("name", "")
-
-    return "Sem referência próxima"
-
-
-@st.cache_data
-def obter_info_local(lat, lon):
-    endereco = obter_endereco_google(lat, lon)
-    referencia = buscar_referencia_google(lat, lon)
-
-    time.sleep(0.1)  # evita limite API
-
-    return endereco, referencia
-
-
 # === FUNÇÃO KML ===
 
 def gerar_kml(grupo, coords, destino_final, tipo="Entrada"):
     kml_root = etree.Element('kml', xmlns="http://www.opengis.net/kml/2.2")
     document = etree.SubElement(kml_root, 'Document')
 
+    # pontos
     for _, row in grupo.iterrows():
         placemark = etree.SubElement(document, 'Placemark')
         name = etree.SubElement(placemark, 'name')
@@ -110,8 +85,7 @@ def gerar_kml(grupo, coords, destino_final, tipo="Entrada"):
 
     # destino
     placemark_dest = etree.SubElement(document, 'Placemark')
-    name_dest = etree.SubElement(placemark_dest, 'name')
-    name_dest.text = "Destino Final"
+    etree.SubElement(placemark_dest, 'name').text = "Destino Final"
 
     point_dest = etree.SubElement(placemark_dest, 'Point')
     coordinates_dest = etree.SubElement(point_dest, 'coordinates')
@@ -128,6 +102,7 @@ def gerar_kml(grupo, coords, destino_final, tipo="Entrada"):
 
     linestring = etree.SubElement(placemark_linha, 'LineString')
     etree.SubElement(linestring, 'tessellate').text = '1'
+
     coord_elem = etree.SubElement(linestring, 'coordinates')
     coord_elem.text = " ".join([f"{c[0]},{c[1]},0" for c in coords])
 
@@ -144,22 +119,20 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS E RELATÓRIO"):
 
     df = pd.read_excel(uploaded_file, sheet_name="BD")
 
-    # 🔥 ENRIQUECIMENTO DE DADOS
+    # 🔥 ENRIQUECIMENTO (ENDEREÇOS)
     enderecos = []
-    referencias = []
 
-    with st.spinner("Buscando endereços e referências..."):
+    with st.spinner("Buscando endereços..."):
         for _, row in df.iterrows():
             lat = row['LAT E']
             lon = row['LONG E']
 
-            endereco, referencia = obter_info_local(lat, lon)
-
+            endereco = obter_endereco_google(lat, lon)
             enderecos.append(endereco)
-            referencias.append(referencia)
+
+            time.sleep(0.05)  # leve controle
 
     df["ENDERECO"] = enderecos
-    df["REFERENCIA"] = referencias
 
     # === ROTAS ===
     grupos = df.groupby("ROTA")
@@ -172,23 +145,27 @@ if uploaded_file and destino_final and st.button("GERAR ROTAS E RELATÓRIO"):
         pontos_entrada = [[row['LONG E'], row['LAT E']] for _, row in grupo.iterrows()]
         pontos_entrada.append([destino_final[1], destino_final[0]])
 
-        resultado = client.directions(
-            coordinates=pontos_entrada,
-            profile='driving-car',
-            optimize_waypoints=True,
-            format='geojson'
-        )
+        try:
+            resultado = client.directions(
+                coordinates=pontos_entrada,
+                profile='driving-car',
+                optimize_waypoints=True,
+                format='geojson'
+            )
 
-        coords = resultado['features'][0]['geometry']['coordinates']
+            coords = resultado['features'][0]['geometry']['coordinates']
 
-        kml = gerar_kml(grupo, coords, destino_final, "Entrada")
-        kml_files.append((f"{rota_nome}_entrada", kml))
+            kml = gerar_kml(grupo, coords, destino_final, "Entrada")
+            kml_files.append((f"{rota_nome}_entrada", kml))
+
+        except Exception as e:
+            st.error(f"Erro na rota {rota_nome}: {e}")
 
     st.session_state["kmls"] = kml_files
     st.session_state["df_final"] = df
 
 
-# === DOWNLOADS ===
+# === SAÍDA ===
 
 if "kmls" in st.session_state:
 
@@ -204,7 +181,7 @@ if "kmls" in st.session_state:
 
     df_final = st.session_state["df_final"]
 
-    st.dataframe(df_final[["COLABORADOR", "ROTA", "ENDERECO", "REFERENCIA"]])
+    st.dataframe(df_final[["COLABORADOR", "ROTA", "ENDERECO"]])
 
     output = io.BytesIO()
     df_final.to_excel(output, index=False)
